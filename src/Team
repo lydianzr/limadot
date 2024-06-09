@@ -1,0 +1,200 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package projectds;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.*;
+import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
+import javax.swing.JOptionPane;
+
+public class Team {
+    // Database connection details
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/basketball_team";
+    private static final String DB_USER = "root";
+    private static final String DB_PASS = "Rosni_tam@79";
+
+    public Team() {
+        // Initialization if needed
+    }
+
+    // Methods to get counts and sum from the database
+    public int getTotalPlayers() {
+        return getCountFromDatabase("SELECT COUNT(*) FROM players");
+    }
+
+    public int getGuardCount() {
+        return getCountFromDatabase("SELECT COUNT(*) FROM players WHERE position = 'G'");
+    }
+
+    public int getForwardCount() {
+        return getCountFromDatabase("SELECT COUNT(*) FROM players WHERE position = 'F'");
+    }
+
+    public int getCenterCount() {
+        return getCountFromDatabase("SELECT COUNT(*) FROM players WHERE position = 'C'");
+    }
+
+    public double getTotalSalary() {
+        return getSumFromDatabase("SELECT SUM(salary) FROM players");
+    }
+
+    private int getCountFromDatabase(String query) {
+        int count = 0;
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(query)) {
+
+            if (resultSet.next()) {
+                count = resultSet.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return count;
+    }
+
+    private double getSumFromDatabase(String query) {
+        double sum = 0.0;
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(query)) {
+
+            if (resultSet.next()) {
+                sum = resultSet.getDouble(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return sum;
+    }
+
+    // Method to check if a player can be added
+    public boolean canAddPlayer(PlayerInfo player) {
+        int totalPlayers = getTotalPlayers();
+        double totalSalary = getTotalSalary();
+        int guardCount = getGuardCount();
+        int forwardCount = getForwardCount();
+        int centerCount = getCenterCount();
+
+        // Check team size and salary cap
+        if (totalPlayers >= 15) return false;
+        if (totalSalary + player.getSalary() > 20000) return false;
+        if (totalPlayers >= 9 && totalSalary >= 19000 && player.getSalary() >= 1000) return false;
+
+        // Check if the total number of players is 10 or more
+        if (totalPlayers >= 7) {
+            // Ensure minimum 2 players for each position
+            if (guardCount < 2 && !player.getPosition().equals("G")){
+                    System.out.println("Please add more player at position guard.");
+                    JOptionPane.showMessageDialog(null, "Please add players with position Guard.");
+                    return false;
+            }
+            if (forwardCount < 2 && !player.getPosition().equals("F")){ 
+                System.out.println("Please add more player at position forward.");
+                JOptionPane.showMessageDialog(null, "Please add players with position forward.");
+                return false;
+            }
+            if (centerCount < 2 && !player.getPosition().equals("C")){
+                System.out.println("Please add more player at position center.");
+                JOptionPane.showMessageDialog(null, "Please add players with position Center.");
+                return false;
+            }
+        }
+
+        // If team size is less than 15, return true
+        if (totalPlayers < 15) return true;
+
+        // Check if minimum 2 players for each position
+        if (player.getPosition().equals("G") && guardCount < 2) return true;
+        if (player.getPosition().equals("F") && forwardCount < 2) return true;
+        if (player.getPosition().equals("C") && centerCount < 2) return true;
+
+        return false;
+    }
+
+    // Method to add a player
+    public void addPlayer(PlayerInfo player) {
+        if (!canAddPlayer(player)) {
+            System.out.println("Cannot add player due to team constraints.");
+            return;
+        }
+
+        // Add player to the database
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
+            String insertPlayerSql = "INSERT INTO players (ID, name, age, height, weight, position, salary, points, rebounds, assists) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement insertPlayerStmt = connection.prepareStatement(insertPlayerSql)) {
+                insertPlayerStmt.setString(1, player.getID());
+                insertPlayerStmt.setString(2, player.getName());
+                insertPlayerStmt.setInt(3, player.getAge());
+                insertPlayerStmt.setDouble(4, player.getHeight());
+                insertPlayerStmt.setDouble(5, player.getWeight());
+                insertPlayerStmt.setString(6, player.getPosition());
+                insertPlayerStmt.setDouble(7, player.getSalary());
+                insertPlayerStmt.setDouble(8, player.getPoints());
+                insertPlayerStmt.setDouble(9, player.getRebounds());
+                insertPlayerStmt.setDouble(10, player.getAssists());
+                insertPlayerStmt.executeUpdate();
+            }
+            System.out.println("Player added successfully.");
+
+            // Display player counts after adding
+            displayPlayerCounts();
+        } catch (SQLIntegrityConstraintViolationException e) {
+            System.out.println("Player with the same ID already exists in the database.");
+            //JOptionPane.showMessageDialog(null, "Player already exist in the database.");
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("An error occurred while adding the player.");
+        }
+    }
+
+    // Method to remove a player
+    public void removePlayer(String playerId) {
+        if (getTotalPlayers() > 10) {
+            // Remove player from the database
+            try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
+                String removePlayerSql = "DELETE FROM players WHERE ID = ?";
+                try (PreparedStatement removePlayerStmt = connection.prepareStatement(removePlayerSql)) {
+                    removePlayerStmt.setString(1, playerId);
+                    removePlayerStmt.executeUpdate();
+                }
+
+                System.out.println("Player removed successfully.");
+            } catch (SQLException e) {
+                e.printStackTrace();
+                System.out.println("An error occurred while removing the player.");
+            }
+        } else {
+            System.out.println("Cannot remove player because team members not enough.");
+        }
+    }
+
+    // Methods to display the current team composition
+    public void displayPlayers() {
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT * FROM players")) {
+
+            System.out.println("Current Team Roster:");
+            while (resultSet.next()) {
+                System.out.println("ID: " + resultSet.getString("ID") +
+                        ", Name: " + resultSet.getString("name") +
+                        ", Position: " + resultSet.getString("position") +
+                        ", Salary: " + resultSet.getDouble("salary"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void displayPlayerCounts() {
+        System.out.println("Total Players: " + getTotalPlayers());
+        System.out.println("Guards: " + getGuardCount());
+        System.out.println("Forwards: " + getForwardCount());
+        System.out.println("Centers: " + getCenterCount());
+    }
+}
